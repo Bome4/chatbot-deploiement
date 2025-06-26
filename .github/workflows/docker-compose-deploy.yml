@@ -143,4 +143,4 @@ jobs:
     # Vérification du déploiement
     - name: Verify deployment
       run: |
-        ssh ${{ env.VM_USER }}@${{ env.VM_IP }} "cd ~/chatbot-deploy && docker-compose ps" 
+        ssh ${{ env.VM_USER }}@${{ env.VM_IP }} "sudo cd ~/chatbot-deploy && docker-compose ps" 

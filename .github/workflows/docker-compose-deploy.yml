@@ -16,7 +16,7 @@ env:
   VM_IP: ${{ secrets.VM_IP }}
   VM_USER: ${{ secrets.VM_USER }}
   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-  REGISTRY: 'votre-registre.azurecr.io'  # Remplacer par votre registre
+  REGISTRY: 'brfbregistry.azurecr.io'  # Remplacer par votre registre
 
 jobs:
   deploy:

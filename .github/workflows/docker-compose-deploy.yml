@@ -140,7 +140,4 @@ jobs:
         export REGISTRY_PASSWORD=${{ secrets.REGISTRY_PASSWORD }} && \
         sudo ./deploy.sh"
       
-    # Vérification du déploiement
-    - name: Verify deployment
-      run: |
-        ssh ${{ env.VM_USER }}@${{ env.VM_IP }} "cd ~/chatbot-deploy && sudo docker-compose ps" 
+    

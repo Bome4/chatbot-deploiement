@@ -1,0 +1,146 @@
+name: Deploy All Services with Docker Compose
+
+on:
+  workflow_dispatch:  # Déclenchement manuel uniquement
+    inputs:
+      environment:
+        description: 'Environnement de déploiement'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  VM_IP: ${{ secrets.VM_IP }}
+  VM_USER: ${{ secrets.VM_USER }}
+  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+  REGISTRY: 'votre-registre.azurecr.io'  # Remplacer par votre registre
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    # Création du fichier docker-compose.yml
+    - name: Create docker-compose.yml
+      run: |
+        cat > docker-compose.yml << EOF
+        version: '3.8'
+        
+        services:
+          bot-site-demo:
+            image: ${REGISTRY}/bot-site-demo:latest
+            container_name: bot-site-demo
+            restart: always
+            ports:
+              - "3000:80"
+            environment:
+              - REACT_APP_BOT_DOMAIN=https://\${DIRECTLINE_HOST}/v3/directline
+              - REACT_APP_BOT_TOKEN=\${DIRECTLINE_TOKEN}
+              - REACT_APP_USE_WEBSOCKET=true
+            networks:
+              - chatbot-network
+        
+          directline-service:
+            image: ${REGISTRY}/directline-service:latest
+            container_name: directline-service
+            restart: always
+            ports:
+              - "3978:8080"
+            environment:
+              - BOT_URL=http://chatbot-gateway:5000
+              - TUNNEL_URL=https://\${DIRECTLINE_HOST}
+              - PORT=8080
+            networks:
+              - chatbot-network
+        
+          chatbot-gateway:
+            image: ${REGISTRY}/chatbot-gateway-orange:latest
+            container_name: chatbot-gateway
+            restart: always
+            ports:
+              - "5000:80"
+            environment:
+              - ASPNETCORE_ENVIRONMENT=Production
+              - RasaNluEndpoint=\${RASA_ENDPOINT}
+              - ConnectionStrings__SQLServer=\${SQL_CONNECTION_STRING}
+            networks:
+              - chatbot-network
+        
+        networks:
+          chatbot-network:
+            driver: bridge
+        EOF
+      
+    # Création du fichier .env
+    - name: Create .env file
+      run: |
+        cat > .env << EOF
+        DIRECTLINE_HOST=${{ secrets.DIRECTLINE_HOST }}
+        DIRECTLINE_TOKEN=${{ secrets.DIRECTLINE_TOKEN }}
+        RASA_ENDPOINT=${{ secrets.RASA_ENDPOINT }}
+        SQL_CONNECTION_STRING=${{ secrets.SQL_CONNECTION_STRING }}
+        EOF
+      
+    # Création du script de déploiement
+    - name: Create deployment script
+      run: |
+        cat > deploy.sh << 'EOF'
+        #!/bin/bash
+        
+        # Arrêter les conteneurs existants
+        docker-compose down
+        
+        # Se connecter au registre de conteneurs
+        echo "$REGISTRY_PASSWORD" | docker login $REGISTRY -u $REGISTRY_USERNAME --password-stdin
+        
+        # Tirer les dernières images
+        docker-compose pull
+        
+        # Démarrer les conteneurs
+        docker-compose up -d
+        
+        # Vérifier l'état des conteneurs
+        docker-compose ps
+        EOF
+        
+        chmod +x deploy.sh
+      
+    # Installation de la clé SSH
+    - name: Install SSH key
+      uses: shimataro/ssh-key-action@v2
+      with:
+        key: ${{ env.SSH_PRIVATE_KEY }}
+        known_hosts: unnecessary
+        if_key_exists: replace
+      
+    # Copie des fichiers vers la VM
+    - name: Copy files to VM
+      run: |
+        # Ajouter l'hôte à known_hosts
+        ssh-keyscan -H ${{ env.VM_IP }} >> ~/.ssh/known_hosts
+        
+        # Créer le répertoire de déploiement
+        ssh ${{ env.VM_USER }}@${{ env.VM_IP }} "mkdir -p ~/chatbot-deployment"
+        
+        # Copier les fichiers
+        scp docker-compose.yml .env deploy.sh ${{ env.VM_USER }}@${{ env.VM_IP }}:~/chatbot-deployment/
+      
+    # Exécution du déploiement sur la VM
+    - name: Execute deployment
+      run: |
+        ssh ${{ env.VM_USER }}@${{ env.VM_IP }} "cd ~/chatbot-deployment && \
+        export REGISTRY=${{ env.REGISTRY }} && \
+        export REGISTRY_USERNAME=${{ secrets.REGISTRY_USERNAME }} && \
+        export REGISTRY_PASSWORD=${{ secrets.REGISTRY_PASSWORD }} && \
+        ./deploy.sh"
+      
+    # Vérification du déploiement
+    - name: Verify deployment
+      run: |
+        ssh ${{ env.VM_USER }}@${{ env.VM_IP }} "cd ~/chatbot-deployment && docker-compose ps" 

@@ -126,15 +126,15 @@ jobs:
         ssh-keyscan -H ${{ env.VM_IP }} >> ~/.ssh/known_hosts
         
         # Créer le répertoire de déploiement
-        ssh ${{ env.VM_USER }}@${{ env.VM_IP }} "mkdir -p ~/chatbot-deployment"
+        ssh ${{ env.VM_USER }}@${{ env.VM_IP }} "mkdir -p ~/chatbot-deploiement"
         
         # Copier les fichiers
-        scp docker-compose.yml .env deploy.sh ${{ env.VM_USER }}@${{ env.VM_IP }}:~/chatbot-deployment/
+        scp docker-compose.yml .env deploy.sh ${{ env.VM_USER }}@${{ env.VM_IP }}:~/chatbot-deploiement/
       
     # Exécution du déploiement sur la VM
     - name: Execute deployment
       run: |
-        ssh ${{ env.VM_USER }}@${{ env.VM_IP }} "cd ~/chatbot-deployment && \
+        ssh ${{ env.VM_USER }}@${{ env.VM_IP }} "cd ~/chatbot-deploiement && \
         export REGISTRY=${{ env.REGISTRY }} && \
         export REGISTRY_USERNAME=${{ secrets.REGISTRY_USERNAME }} && \
         export REGISTRY_PASSWORD=${{ secrets.REGISTRY_PASSWORD }} && \
@@ -143,4 +143,4 @@ jobs:
     # Vérification du déploiement
     - name: Verify deployment
       run: |
-        ssh ${{ env.VM_USER }}@${{ env.VM_IP }} "cd ~/chatbot-deployment && docker-compose ps" 
+        ssh ${{ env.VM_USER }}@${{ env.VM_IP }} "cd ~/chatbot-deploiement && docker-compose ps" 
